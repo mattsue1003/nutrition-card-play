@@ -6,7 +6,8 @@ const PAGE={w:210,h:297,m:8};
 const FONT='"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif';
 const PPT_FONT='Microsoft JhengHei';
 const C={ink:'192720',muted:'5F6E62',green:'2C684D',lime:'D5F073',dot:'A0C44F',frame:'CFD8CB',art:'E6EBE1',cut:'9AA598'};
-const opts={per:6,shuffle:true,back:false,rules:true};
+const opts={per:6,shuffle:true,back:true,rules:true,backColor:0,backText:''};
+const BACKS=[['2C684D','D5F073'],['24466E','FFD27A'],['B9503B','FFE3B3'],['5B4B8A','E3D7FF']];
 const imgCache=new Map();
 const measure=document.createElement('canvas').getContext('2d');
 
@@ -56,13 +57,15 @@ function cardOps(c,x,y,w,h,big,imgs,ops){
 }
 
 function backOps(x,y,w,h,ops){
-  ops.push({t:'rect',x,y,w,h,fill:C.green});
-  ops.push({t:'rect',x:x+4,y:y+4,w:w-8,h:h-8,r:4,stroke:C.lime,lw:.7});
+  const[bg,ac]=BACKS[opts.backColor]||BACKS[0];
+  ops.push({t:'rect',x,y,w,h,fill:bg});
+  ops.push({t:'rect',x:x+4,y:y+4,w:w-8,h:h-8,r:4,stroke:ac,lw:.7});
+  ops.push({t:'rect',x:x+6.5,y:y+6.5,w:w-13,h:h-13,r:3,stroke:ac,lw:.25});
   const s=Math.min(w,h)*.2;
-  ops.push({t:'text',x,y:y+h/2-s*1.25,w,h:s*1.3,text:'✳',size:s,color:C.lime,align:'center',bold:true});
-  const t=deckName(),ts=fitSize(t,Math.min(w,h)*.09,w-20,true);
+  ops.push({t:'text',x,y:y+h/2-s*1.25,w,h:s*1.3,text:'✦',size:s,color:ac,align:'center',bold:true});
+  const t=opts.backText||deckName(),ts=fitSize(t,Math.min(w,h)*.09,w-20,true);
   ops.push({t:'text',x,y:y+h/2+2,w,h:ts*1.4,text:t,size:ts,color:'FFFFFF',align:'center',bold:true});
-  ops.push({t:'text',x,y:y+h/2+2+ts*1.5,w,h:4.5,text:`${statLabel()}配對卡`,size:3.6,color:C.lime,align:'center'});
+  ops.push({t:'text',x,y:y+h/2+2+ts*1.5,w,h:4.5,text:`${statLabel()}配對卡`,size:3.6,color:ac,align:'center'});
 }
 
 function rulesOps(total,ops){
@@ -72,8 +75,8 @@ function rulesOps(total,ops){
   const t=deckName();ops.push({t:'text',x,y:38,w,h:16,text:t,size:fitSize(t,13,w,true),color:C.ink,bold:true});
   ops.push({t:'text',x,y:58,w,h:6,text:`共 ${total} 張卡・每頁 ${opts.per} 張・卡上數值：${statLabel()}`,size:4.4,color:C.muted});
   ops.push({t:'rect',x,y:70,w,h:52,r:4,fill:'EEF3E7'});
-  ops.push({t:'para',x:x+8,y:76,w:w-16,h:40,text:gameRule()||'寫下你的遊戲規則。',size:6.4,color:C.ink,bold:true});
-  const steps=['1　沿灰色線裁切。卡片之間沒有空隙，裁紙機沿線一刀就能切開。','2　洗牌後照上方玩法開始玩，帶領者可以先示範一輪。','3　玩完可以聊聊：哪一張卡最讓你意外？平常常吃的有哪幾樣？'];
+  ops.push({t:'para',x:x+8,y:76,w:w-16,h:40,text:gameRule().replace(/。\s*(?=玩法)/g,'。\n')||'寫下你的遊戲規則。',size:gameRule().length>40?5:6.4,color:C.ink,bold:true});
+  const steps=['1　沿灰色線裁切。卡片之間沒有空隙，裁紙機沿線一刀就能切開。','2　洗牌後牌背朝上散在桌上，大家輪流，一人翻一張。','3　玩完可以聊聊：哪一張卡最讓你意外？平常常吃的有哪幾樣？'];
   ops.push({t:'text',x,y:134,w,h:7,text:'帶領步驟',size:5.4,color:C.green,bold:true});
   steps.forEach((s,i)=>ops.push({t:'para',x,y:145+i*17,w,h:15,text:s,size:4.6,color:C.ink}));
   ops.push({t:'text',x,y:224,w,h:7,text:'列印提醒',size:5.4,color:C.green,bold:true});
@@ -90,8 +93,8 @@ async function buildPages(forPreview){
     const chunk=list.slice(i,i+opts.per),ops=[];
     chunk.forEach((c,k)=>{const p=cellXY(k,g);cardOps(c,p.x,p.y,g.w,g.h,big,imgs,ops)});
     cutLines(g,ops);pages.push(ops);
-    if(forPreview)break;
     if(opts.back){const b=[];chunk.forEach((c,k)=>{const p=cellXY(k,g,true);backOps(p.x,p.y,g.w,g.h,b)});cutLines(g,b);pages.push(b)}
+    if(forPreview)break;
   }
   return{pages,imgs};
 }
@@ -148,17 +151,22 @@ $('#pptBtn').onclick=()=>busy($('#pptBtn'),'製作 PPT 中…',async()=>{
 });
 
 document.querySelectorAll('#perPage button').forEach(b=>b.onclick=()=>{opts.per=+b.dataset.per;document.querySelectorAll('#perPage button').forEach(x=>x.classList.toggle('on',x===b));saveOpts();refresh()});
-[['optShuffle','shuffle'],['optBack','back'],['optRules','rules']].forEach(([id,key])=>{$('#'+id).onchange=e=>{opts[key]=e.target.checked;saveOpts();refresh()}});
+[['optShuffle','shuffle'],['optRules','rules']].forEach(([id,key])=>{$('#'+id).onchange=e=>{opts[key]=e.target.checked;saveOpts();refresh()}});
 function saveOpts(){try{localStorage.setItem('cardforge-export',JSON.stringify(opts))}catch(e){}}
 try{Object.assign(opts,JSON.parse(localStorage.getItem('cardforge-export'))||{});if(![4,6].includes(opts.per))opts.per=6}catch(e){}
 document.querySelectorAll('#perPage button').forEach(x=>x.classList.toggle('on',+x.dataset.per===opts.per));
-$('#optShuffle').checked=opts.shuffle;$('#optBack').checked=opts.back;$('#optRules').checked=opts.rules;
+$('#optShuffle').checked=opts.shuffle;$('#optRules').checked=opts.rules;
 
+function syncBack(){document.querySelectorAll('#backSeg button').forEach(x=>x.classList.toggle('on',+x.dataset.back===+opts.back));$('#backOpts').classList.toggle('off',!opts.back);document.querySelectorAll('#backColors button').forEach(x=>x.classList.toggle('on',+x.dataset.c===opts.backColor));$('#backText').value=opts.backText||''}
+document.querySelectorAll('#backSeg button').forEach(b=>b.onclick=()=>{opts.back=b.dataset.back==='1';syncBack();saveOpts();refresh()});
+document.querySelectorAll('#backColors button').forEach(b=>b.onclick=()=>{opts.backColor=+b.dataset.c;syncBack();saveOpts();refresh()});
+$('#backText').oninput=e=>{opts.backText=e.target.value.trim();saveOpts();refresh()};
+syncBack();
 let timer,seq=0;
 function refresh(){
-  $('#pageCount').textContent=pageCount();$('#pageInfo').textContent=`共 ${pageCount()} 頁${opts.back?'（含卡背）':''}`;
+  $('#pageCount').textContent=pageCount();$('#pageInfo').textContent=`共 ${pageCount()} 頁${opts.back?'（正面、牌背交錯）':''}`;$('#thumbTitle').textContent=opts.back?'A4 第一頁：正面＋牌背':'A4 第一頁';$('#backCanvas').classList.toggle('hide',!opts.back);
   $('#exportSummary').textContent=`A4 直式 · 每頁 ${opts.per} 張 · ${cards.length} 張卡`;
-  clearTimeout(timer);timer=setTimeout(async()=>{const my=++seq;const{pages,imgs}=await buildPages(true);if(my!==seq)return;const cv=$('#sheetCanvas'),k=cv.width/PAGE.w;drawPage(cv.getContext('2d'),pages[0]||[],k,imgs)},250);
+  clearTimeout(timer);timer=setTimeout(async()=>{const my=++seq;const{pages,imgs}=await buildPages(true);if(my!==seq)return;const cv=$('#sheetCanvas'),k=cv.width/PAGE.w;drawPage(cv.getContext('2d'),pages[0]||[],k,imgs);if(opts.back&&pages[1])drawPage($('#backCanvas').getContext('2d'),pages[1],k,imgs)},250);
 }
 window.__refreshExport=refresh;refresh();
 })();
